@@ -50,6 +50,7 @@ Bus::Bus()
 	// Connect CPU to communication bus
 	cpu.ConnectBus(this);
 
+
 	// Clear RAM contents, just in case :P
 	for (auto& i : ram) i = 0x00;
 }

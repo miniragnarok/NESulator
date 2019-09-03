@@ -1,3 +1,7 @@
+
+#include "CPU6502.h"
+#include "Bus.h"
+
 /*
 	Datasheet: http://archive.6502.org/datasheets/rockwell_r650x_r651x.pdf
 
@@ -43,9 +47,6 @@
 	Patreon:	https://www.patreon.com/javidx9
 */
 
-#include "CPU6502.h"
-#include "Bus.h"
-
 // Constructor
 CPU6502::CPU6502()
 {
@@ -82,17 +83,12 @@ CPU6502::CPU6502()
 	};
 }
 
+// Destructor
 CPU6502::~CPU6502()
 {
-	// Destructor - has nothing to do
 }
 
-
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// BUS CONNECTIVITY
+#pragma region Bus Connectivity
 
 // Reads an 8-bit byte from the bus, located at the specified 16-bit address
 uint8_t CPU6502::read(uint16_t a)
@@ -111,12 +107,9 @@ void CPU6502::write(uint16_t a, uint8_t d)
 	bus->write(a, d);
 }
 
+#pragma endregion
 
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// EXTERNAL INPUTS
+#pragma region External Inputs
 
 // Forces the 6502 into a known state. This is hard-wired inside the CPU. The
 // registers are set to 0x00, the status register is cleared except for unused
@@ -291,17 +284,14 @@ void CPU6502::clock()
 	cycles--;
 }
 
+#pragma endregion
 
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// FLAG FUNCTIONS
+#pragma region Flag Functions
 
 // Returns the value of a specific bit of the status register
-uint8_t CPU6502::GetFlag(FLAGS6502 f)
+bool CPU6502::GetFlag(FLAGS6502 f)
 {
-	return ((status & f) > 0) ? 1 : 0;
+	return status & f;
 }
 
 // Sets or clears a specific bit of the status register
@@ -313,12 +303,9 @@ void CPU6502::SetFlag(FLAGS6502 f, bool v)
 		status &= ~f;
 }
 
+#pragma endregion
 
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// ADDRESSING MODES
+#pragma region Addressing Modes
 
 // The 6502 can address between 0x0000 - 0xFFFF. The high byte is often referred
 // to as the "page", and the low byte is the offset into that page. This implies
@@ -554,12 +541,9 @@ uint8_t CPU6502::fetch()
 	return fetched;
 }
 
+#pragma endregion
 
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// INSTRUCTION IMPLEMENTATIONS
+#pragma region Instruction Implementations
 
 // Note: Ive started with the two most complicated instructions to emulate, which
 // ironically is addition and subtraction! Ive tried to include a detailed 
@@ -1425,12 +1409,9 @@ uint8_t CPU6502::XXX()
 	return 0;
 }
 
+#pragma endregion
 
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// HELPER FUNCTIONS
+#pragma region Helper Functions
 
 bool CPU6502::complete()
 {
@@ -1561,3 +1542,5 @@ std::map<uint16_t, std::string> CPU6502::disassemble(uint16_t nStart, uint16_t n
 
 	return mapLines;
 }
+
+#pragma endregion

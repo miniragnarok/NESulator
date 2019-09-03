@@ -1,6 +1,3 @@
-/*
-	Datasheet: http://archive.6502.org/datasheets/rockwell_r650x_r651x.pdf
-*/
 
 #pragma once
 
@@ -43,9 +40,9 @@ public:
 	uint8_t  a = 0x00;		// Accumulator Register
 	uint8_t  x = 0x00;		// X Register
 	uint8_t  y = 0x00;		// Y Register
-	uint8_t  stkp = 0x00;		// Stack Pointer (points to location on bus)
+	uint8_t  stkp = 0x00;	// Stack Pointer (points to location on bus)
 	uint16_t pc = 0x0000;	// Program Counter
-	uint8_t  status = 0x00;		// Status Register
+	uint8_t  status = 0x00;	// Status Register
 
 	// External event functions. In hardware these represent pins that are asserted
 	// to produce a change in state.
@@ -84,10 +81,10 @@ public:
 
 private:
 	// Convenience functions to access status register
-	uint8_t GetFlag(FLAGS6502 f);
-	void    SetFlag(FLAGS6502 f, bool v);
+	bool GetFlag(FLAGS6502 f);
+	void SetFlag(FLAGS6502 f, bool v);
 
-	// Assisstive variables to facilitate emulation
+	// Assistive variables to facilitate emulation
 	uint8_t  fetched = 0x00;   // Represents the working input value to the ALU
 	uint16_t temp = 0x0000; // A convenience variable used everywhere
 	uint16_t addr_abs = 0x0000; // All used memory addresses end up in here
