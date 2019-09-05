@@ -60,16 +60,30 @@ Bus::~Bus()
 {
 }
 
-void Bus::write(uint16_t addr, uint8_t data)
-{
-	if (addr >= 0x0000 && addr <= 0xFFFF)
-		ram[addr] = data;
-}
-
-uint8_t Bus::read(uint16_t addr, bool bReadOnly)
+uint8_t Bus::readByte(uint16_t addr, bool bReadOnly)
 {
 	if (addr >= 0x0000 && addr <= 0xFFFF)
 		return ram[addr];
 
 	return 0x00;
+}
+
+uint16_t Bus::readWord(uint16_t addr, bool bReadOnly)
+{
+	if (addr >= 0x0000 && addr <= 0xFFFF)
+		return ram[addr];
+
+	return 0x00;
+}
+
+void Bus::writeByte(uint16_t addr, uint8_t data)
+{
+	if (addr >= 0x0000 && addr <= 0xFFFF)
+		ram[addr] = data;
+}
+
+void Bus::writeWord(uint16_t addr, uint16_t data)
+{
+	if (addr >= 0x0000 && addr <= 0xFFFF)
+		ram[addr] = data;
 }

@@ -91,20 +91,37 @@ CPU6502::~CPU6502()
 #pragma region Bus Connectivity
 
 // Reads an 8-bit byte from the bus, located at the specified 16-bit address
-uint8_t CPU6502::read(uint16_t a)
+uint8_t CPU6502::readByte(uint16_t addr, bool bReadOnly)
 {
 	// In normal operation "read only" is set to false. This may seem odd. Some
 	// devices on the bus may change state when they are read from, and this 
 	// is intentional under normal circumstances. However the disassembler will
 	// want to read the data at an address without changing the state of the
 	// devices on the bus
-	return bus->read(a, false);
+	return bus->readByte(addr, bReadOnly);
+}
+
+// Reads an 8-bit byte from the bus, located at the specified 16-bit address
+uint16_t CPU6502::readWord(uint16_t addr, bool bReadOnly)
+{
+	// In normal operation "read only" is set to false. This may seem odd. Some
+	// devices on the bus may change state when they are read from, and this 
+	// is intentional under normal circumstances. However the disassembler will
+	// want to read the data at an address without changing the state of the
+	// devices on the bus
+	return bus->readByte(addr, bReadOnly);
 }
 
 // Writes a byte to the bus at the specified address
-void CPU6502::write(uint16_t a, uint8_t d)
+void CPU6502::writeByte(uint16_t addr, uint8_t data)
 {
-	bus->write(a, d);
+	bus->writeByte(addr, data);
+}
+
+// Writes a byte to the bus at the specified address
+void CPU6502::writeWord(uint16_t addr, uint16_t data)
+{
+	bus->writeWord(addr, data);
 }
 
 #pragma endregion
@@ -122,8 +139,8 @@ void CPU6502::reset()
 {
 	// Get address to set program counter to
 	addr_abs = 0xFFFC;
-	uint16_t lo = read(addr_abs + 0);
-	uint16_t hi = read(addr_abs + 1);
+	uint16_t lo = readByte(addr_abs + 0);
+	uint16_t hi = readByte(addr_abs + 1);
 
 	// Set it
 	pc = (hi << 8) | lo;
@@ -165,22 +182,22 @@ void CPU6502::irq()
 	{
 		// Push the program counter to the stack. It's 16-bits dont
 		// forget so that takes two pushes
-		write(0x0100 + stkp, (pc >> 8) & 0x00FF);
+		writeByte(0x0100 + stkp, (pc >> 8) & 0x00FF);
 		stkp--;
-		write(0x0100 + stkp, pc & 0x00FF);
+		writeByte(0x0100 + stkp, pc & 0x00FF);
 		stkp--;
 
 		// Then Push the status register to the stack
 		SetFlag(B, 0);
 		SetFlag(U, 1);
 		SetFlag(I, 1);
-		write(0x0100 + stkp, status);
+		writeByte(0x0100 + stkp, status);
 		stkp--;
 
 		// Read new program counter location from fixed address
 		addr_abs = 0xFFFE;
-		uint16_t lo = read(addr_abs + 0);
-		uint16_t hi = read(addr_abs + 1);
+		uint16_t lo = readByte(addr_abs + 0);
+		uint16_t hi = readByte(addr_abs + 1);
 		pc = (hi << 8) | lo;
 
 		// IRQs take time
@@ -194,20 +211,20 @@ void CPU6502::irq()
 // form location 0xFFFA.
 void CPU6502::nmi()
 {
-	write(0x0100 + stkp, (pc >> 8) & 0x00FF);
+	writeByte(0x0100 + stkp, (pc >> 8) & 0x00FF);
 	stkp--;
-	write(0x0100 + stkp, pc & 0x00FF);
+	writeByte(0x0100 + stkp, pc & 0x00FF);
 	stkp--;
 
 	SetFlag(B, 0);
 	SetFlag(U, 1);
 	SetFlag(I, 1);
-	write(0x0100 + stkp, status);
+	writeByte(0x0100 + stkp, status);
 	stkp--;
 
 	addr_abs = 0xFFFA;
-	uint16_t lo = read(addr_abs + 0);
-	uint16_t hi = read(addr_abs + 1);
+	uint16_t lo = readByte(addr_abs + 0);
+	uint16_t hi = readByte(addr_abs + 1);
 	pc = (hi << 8) | lo;
 
 	cycles = 8;
@@ -231,7 +248,7 @@ void CPU6502::clock()
 		// Read next instruction byte. This 8-bit value is used to index
 		// the translation table to get the relevant information about
 		// how to implement the instruction
-		opcode = read(pc);
+		opcode = readByte(pc);
 
 #ifdef LOGMODE
 		uint16_t log_pc = pc;
@@ -346,7 +363,7 @@ uint8_t CPU6502::IMM()
 // one byte instead of the usual two.
 uint8_t CPU6502::ZP0()
 {
-	addr_abs = read(pc);
+	addr_abs = readByte(pc);
 	pc++;
 	addr_abs &= 0x00FF;
 	return 0;
@@ -360,7 +377,7 @@ uint8_t CPU6502::ZP0()
 // ranges within the first page.
 uint8_t CPU6502::ZPX()
 {
-	addr_abs = (read(pc) + x);
+	addr_abs = (readByte(pc) + x);
 	pc++;
 	addr_abs &= 0x00FF;
 	return 0;
@@ -371,7 +388,7 @@ uint8_t CPU6502::ZPX()
 // Same as above but uses Y Register for offset
 uint8_t CPU6502::ZPY()
 {
-	addr_abs = (read(pc) + y);
+	addr_abs = (readByte(pc) + y);
 	pc++;
 	addr_abs &= 0x00FF;
 	return 0;
@@ -384,7 +401,7 @@ uint8_t CPU6502::ZPY()
 // you cant directly branch to any address in the addressable range.
 uint8_t CPU6502::REL()
 {
-	addr_rel = read(pc);
+	addr_rel = readByte(pc);
 	pc++;
 	if (addr_rel & 0x80)
 		addr_rel |= 0xFF00;
@@ -396,9 +413,9 @@ uint8_t CPU6502::REL()
 // A full 16-bit address is loaded and used
 uint8_t CPU6502::ABS()
 {
-	uint16_t lo = read(pc);
+	uint16_t lo = readByte(pc);
 	pc++;
-	uint16_t hi = read(pc);
+	uint16_t hi = readByte(pc);
 	pc++;
 
 	addr_abs = (hi << 8) | lo;
@@ -413,9 +430,9 @@ uint8_t CPU6502::ABS()
 // the page, an additional clock cycle is required
 uint8_t CPU6502::ABX()
 {
-	uint16_t lo = read(pc);
+	uint16_t lo = readByte(pc);
 	pc++;
-	uint16_t hi = read(pc);
+	uint16_t hi = readByte(pc);
 	pc++;
 
 	addr_abs = (hi << 8) | lo;
@@ -434,9 +451,9 @@ uint8_t CPU6502::ABX()
 // the page, an additional clock cycle is required
 uint8_t CPU6502::ABY()
 {
-	uint16_t lo = read(pc);
+	uint16_t lo = readByte(pc);
 	pc++;
-	uint16_t hi = read(pc);
+	uint16_t hi = readByte(pc);
 	pc++;
 
 	addr_abs = (hi << 8) | lo;
@@ -460,20 +477,20 @@ uint8_t CPU6502::ABY()
 // invalid actual address
 uint8_t CPU6502::IND()
 {
-	uint16_t ptr_lo = read(pc);
+	uint16_t ptr_lo = readByte(pc);
 	pc++;
-	uint16_t ptr_hi = read(pc);
+	uint16_t ptr_hi = readByte(pc);
 	pc++;
 
 	uint16_t ptr = (ptr_hi << 8) | ptr_lo;
 
 	if (ptr_lo == 0x00FF) // Simulate page boundary hardware bug
 	{
-		addr_abs = (read(ptr & 0xFF00) << 8) | read(ptr + 0);
+		addr_abs = (readByte(ptr & 0xFF00) << 8) | readByte(ptr + 0);
 	}
 	else // Behave normally
 	{
-		addr_abs = (read(ptr + 1) << 8) | read(ptr + 0);
+		addr_abs = (readByte(ptr + 1) << 8) | readByte(ptr + 0);
 	}
 
 	return 0;
@@ -486,11 +503,11 @@ uint8_t CPU6502::IND()
 // from this location
 uint8_t CPU6502::IZX()
 {
-	uint16_t t = read(pc);
+	uint16_t t = readByte(pc);
 	pc++;
 
-	uint16_t lo = read((uint16_t)(t + (uint16_t)x) & 0x00FF);
-	uint16_t hi = read((uint16_t)(t + (uint16_t)x + 1) & 0x00FF);
+	uint16_t lo = readByte((uint16_t)(t + (uint16_t)x) & 0x00FF);
+	uint16_t hi = readByte((uint16_t)(t + (uint16_t)x + 1) & 0x00FF);
 
 	addr_abs = (hi << 8) | lo;
 
@@ -505,11 +522,11 @@ uint8_t CPU6502::IZX()
 // change in page then an additional clock cycle is required.
 uint8_t CPU6502::IZY()
 {
-	uint16_t t = read(pc);
+	uint16_t t = readByte(pc);
 	pc++;
 
-	uint16_t lo = read(t & 0x00FF);
-	uint16_t hi = read((t + 1) & 0x00FF);
+	uint16_t lo = readByte(t & 0x00FF);
+	uint16_t hi = readByte((t + 1) & 0x00FF);
 
 	addr_abs = (hi << 8) | lo;
 	addr_abs += y;
@@ -537,7 +554,7 @@ uint8_t CPU6502::IZY()
 uint8_t CPU6502::fetch()
 {
 	if (!(lookup[opcode].addrmode == &CPU6502::IMP))
-		fetched = read(addr_abs);
+		fetched = readByte(addr_abs);
 	return fetched;
 }
 
@@ -722,7 +739,7 @@ uint8_t CPU6502::ASL()
 	if (lookup[opcode].addrmode == &CPU6502::IMP)
 		a = temp & 0x00FF;
 	else
-		write(addr_abs, temp & 0x00FF);
+		writeByte(addr_abs, temp & 0x00FF);
 	return 0;
 }
 
@@ -851,17 +868,17 @@ uint8_t CPU6502::BRK()
 	pc++;
 
 	SetFlag(I, 1);
-	write(0x0100 + stkp, (pc >> 8) & 0x00FF);
+	writeByte(0x0100 + stkp, (pc >> 8) & 0x00FF);
 	stkp--;
-	write(0x0100 + stkp, pc & 0x00FF);
+	writeByte(0x0100 + stkp, pc & 0x00FF);
 	stkp--;
 
 	SetFlag(B, 1);
-	write(0x0100 + stkp, status);
+	writeByte(0x0100 + stkp, status);
 	stkp--;
 	SetFlag(B, 0);
 
-	pc = (uint16_t)read(0xFFFE) | ((uint16_t)read(0xFFFF) << 8);
+	pc = (uint16_t)readByte(0xFFFE) | ((uint16_t)readByte(0xFFFF) << 8);
 	return 0;
 }
 
@@ -986,7 +1003,7 @@ uint8_t CPU6502::DEC()
 {
 	fetch();
 	temp = fetched - 1;
-	write(addr_abs, temp & 0x00FF);
+	writeByte(addr_abs, temp & 0x00FF);
 	SetFlag(Z, (temp & 0x00FF) == 0x0000);
 	SetFlag(N, temp & 0x0080);
 	return 0;
@@ -1037,7 +1054,7 @@ uint8_t CPU6502::INC()
 {
 	fetch();
 	temp = fetched + 1;
-	write(addr_abs, temp & 0x00FF);
+	writeByte(addr_abs, temp & 0x00FF);
 	SetFlag(Z, (temp & 0x00FF) == 0x0000);
 	SetFlag(N, temp & 0x0080);
 	return 0;
@@ -1083,9 +1100,9 @@ uint8_t CPU6502::JSR()
 {
 	pc--;
 
-	write(0x0100 + stkp, (pc >> 8) & 0x00FF);
+	writeByte(0x0100 + stkp, (pc >> 8) & 0x00FF);
 	stkp--;
-	write(0x0100 + stkp, pc & 0x00FF);
+	writeByte(0x0100 + stkp, pc & 0x00FF);
 	stkp--;
 
 	pc = addr_abs;
@@ -1141,7 +1158,7 @@ uint8_t CPU6502::LSR()
 	if (lookup[opcode].addrmode == &CPU6502::IMP)
 		a = temp & 0x00FF;
 	else
-		write(addr_abs, temp & 0x00FF);
+		writeByte(addr_abs, temp & 0x00FF);
 	return 0;
 }
 
@@ -1182,7 +1199,7 @@ uint8_t CPU6502::ORA()
 // Function:    A -> stack
 uint8_t CPU6502::PHA()
 {
-	write(0x0100 + stkp, a);
+	writeByte(0x0100 + stkp, a);
 	stkp--;
 	return 0;
 }
@@ -1193,7 +1210,7 @@ uint8_t CPU6502::PHA()
 // Note:        Break flag is set to 1 before push
 uint8_t CPU6502::PHP()
 {
-	write(0x0100 + stkp, status | B | U);
+	writeByte(0x0100 + stkp, status | B | U);
 	SetFlag(B, 0);
 	SetFlag(U, 0);
 	stkp--;
@@ -1207,7 +1224,7 @@ uint8_t CPU6502::PHP()
 uint8_t CPU6502::PLA()
 {
 	stkp++;
-	a = read(0x0100 + stkp);
+	a = readByte(0x0100 + stkp);
 	SetFlag(Z, a == 0x00);
 	SetFlag(N, a & 0x80);
 	return 0;
@@ -1219,7 +1236,7 @@ uint8_t CPU6502::PLA()
 uint8_t CPU6502::PLP()
 {
 	stkp++;
-	status = read(0x0100 + stkp);
+	status = readByte(0x0100 + stkp);
 	SetFlag(U, 1);
 	return 0;
 }
@@ -1234,7 +1251,7 @@ uint8_t CPU6502::ROL()
 	if (lookup[opcode].addrmode == &CPU6502::IMP)
 		a = temp & 0x00FF;
 	else
-		write(addr_abs, temp & 0x00FF);
+		writeByte(addr_abs, temp & 0x00FF);
 	return 0;
 }
 
@@ -1248,30 +1265,30 @@ uint8_t CPU6502::ROR()
 	if (lookup[opcode].addrmode == &CPU6502::IMP)
 		a = temp & 0x00FF;
 	else
-		write(addr_abs, temp & 0x00FF);
+		writeByte(addr_abs, temp & 0x00FF);
 	return 0;
 }
 
 uint8_t CPU6502::RTI()
 {
 	stkp++;
-	status = read(0x0100 + stkp);
+	status = readByte(0x0100 + stkp);
 	status &= ~B;
 	status &= ~U;
 
 	stkp++;
-	pc = (uint16_t)read(0x0100 + stkp);
+	pc = (uint16_t)readByte(0x0100 + stkp);
 	stkp++;
-	pc |= (uint16_t)read(0x0100 + stkp) << 8;
+	pc |= (uint16_t)readByte(0x0100 + stkp) << 8;
 	return 0;
 }
 
 uint8_t CPU6502::RTS()
 {
 	stkp++;
-	pc = (uint16_t)read(0x0100 + stkp);
+	pc = (uint16_t)readByte(0x0100 + stkp);
 	stkp++;
-	pc |= (uint16_t)read(0x0100 + stkp) << 8;
+	pc |= (uint16_t)readByte(0x0100 + stkp) << 8;
 
 	pc++;
 	return 0;
@@ -1311,7 +1328,7 @@ uint8_t CPU6502::SEI()
 // Function:    M = A
 uint8_t CPU6502::STA()
 {
-	write(addr_abs, a);
+	writeByte(addr_abs, a);
 	return 0;
 }
 
@@ -1320,7 +1337,7 @@ uint8_t CPU6502::STA()
 // Function:    M = X
 uint8_t CPU6502::STX()
 {
-	write(addr_abs, x);
+	writeByte(addr_abs, x);
 	return 0;
 }
 
@@ -1329,7 +1346,7 @@ uint8_t CPU6502::STX()
 // Function:    M = Y
 uint8_t CPU6502::STY()
 {
-	write(addr_abs, y);
+	writeByte(addr_abs, y);
 	return 0;
 }
 
@@ -1456,7 +1473,7 @@ std::map<uint16_t, std::string> CPU6502::disassemble(uint16_t nStart, uint16_t n
 		std::string sInst = "$" + hex(addr, 4) + ": ";
 
 		// Read instruction, and get its readable name
-		uint8_t opcode = bus->read(addr, true); addr++;
+		uint8_t opcode = bus->readByte(addr, true); addr++;
 		sInst += lookup[opcode].name + " ";
 
 		// Get oprands from desired locations, and form the
@@ -1470,66 +1487,66 @@ std::map<uint16_t, std::string> CPU6502::disassemble(uint16_t nStart, uint16_t n
 		}
 		else if (lookup[opcode].addrmode == &CPU6502::IMM)
 		{
-			value = bus->read(addr, true); addr++;
+			value = bus->readByte(addr, true); addr++;
 			sInst += "#$" + hex(value, 2) + " {IMM}";
 		}
 		else if (lookup[opcode].addrmode == &CPU6502::ZP0)
 		{
-			lo = bus->read(addr, true); addr++;
+			lo = bus->readByte(addr, true); addr++;
 			hi = 0x00;
 			sInst += "$" + hex(lo, 2) + " {ZP0}";
 		}
 		else if (lookup[opcode].addrmode == &CPU6502::ZPX)
 		{
-			lo = bus->read(addr, true); addr++;
+			lo = bus->readByte(addr, true); addr++;
 			hi = 0x00;
 			sInst += "$" + hex(lo, 2) + ", X {ZPX}";
 		}
 		else if (lookup[opcode].addrmode == &CPU6502::ZPY)
 		{
-			lo = bus->read(addr, true); addr++;
+			lo = bus->readByte(addr, true); addr++;
 			hi = 0x00;
 			sInst += "$" + hex(lo, 2) + ", Y {ZPY}";
 		}
 		else if (lookup[opcode].addrmode == &CPU6502::IZX)
 		{
-			lo = bus->read(addr, true); addr++;
+			lo = bus->readByte(addr, true); addr++;
 			hi = 0x00;
 			sInst += "($" + hex(lo, 2) + ", X) {IZX}";
 		}
 		else if (lookup[opcode].addrmode == &CPU6502::IZY)
 		{
-			lo = bus->read(addr, true); addr++;
+			lo = bus->readByte(addr, true); addr++;
 			hi = 0x00;
 			sInst += "($" + hex(lo, 2) + "), Y {IZY}";
 		}
 		else if (lookup[opcode].addrmode == &CPU6502::ABS)
 		{
-			lo = bus->read(addr, true); addr++;
-			hi = bus->read(addr, true); addr++;
+			lo = bus->readByte(addr, true); addr++;
+			hi = bus->readByte(addr, true); addr++;
 			sInst += "$" + hex((uint16_t)(hi << 8) | lo, 4) + " {ABS}";
 		}
 		else if (lookup[opcode].addrmode == &CPU6502::ABX)
 		{
-			lo = bus->read(addr, true); addr++;
-			hi = bus->read(addr, true); addr++;
+			lo = bus->readByte(addr, true); addr++;
+			hi = bus->readByte(addr, true); addr++;
 			sInst += "$" + hex((uint16_t)(hi << 8) | lo, 4) + ", X {ABX}";
 		}
 		else if (lookup[opcode].addrmode == &CPU6502::ABY)
 		{
-			lo = bus->read(addr, true); addr++;
-			hi = bus->read(addr, true); addr++;
+			lo = bus->readByte(addr, true); addr++;
+			hi = bus->readByte(addr, true); addr++;
 			sInst += "$" + hex((uint16_t)(hi << 8) | lo, 4) + ", Y {ABY}";
 		}
 		else if (lookup[opcode].addrmode == &CPU6502::IND)
 		{
-			lo = bus->read(addr, true); addr++;
-			hi = bus->read(addr, true); addr++;
+			lo = bus->readByte(addr, true); addr++;
+			hi = bus->readByte(addr, true); addr++;
 			sInst += "($" + hex((uint16_t)(hi << 8) | lo, 4) + ") {IND}";
 		}
 		else if (lookup[opcode].addrmode == &CPU6502::REL)
 		{
-			value = bus->read(addr, true); addr++;
+			value = bus->readByte(addr, true); addr++;
 			sInst += "$" + hex(value, 2) + " [$" + hex(addr + value, 4) + "] {REL}";
 		}
 

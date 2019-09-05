@@ -95,8 +95,10 @@ private:
 
 	// Linkage to the communications bus
 	Bus* bus = nullptr;
-	uint8_t read(uint16_t a);
-	void    write(uint16_t a, uint8_t d);
+	uint8_t readByte(uint16_t addr, bool bReadOnly = false);
+	uint16_t readWord(uint16_t addr, bool bReadOnly = false);
+	void writeByte(uint16_t addr, uint8_t data);
+	void writeWord(uint16_t addr, uint16_t data);
 
 	// The read location of data can come from two sources, a memory address, or
 	// its immediately available as part of the instruction. This function decides

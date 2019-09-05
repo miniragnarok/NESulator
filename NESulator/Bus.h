@@ -16,8 +16,10 @@ public: // Devices on bus
 	// Fake RAM for this part of the series
 	std::array<uint8_t, 64 * 1024> ram;
 
-
 public: // Bus Read & Write
-	void write(uint16_t addr, uint8_t data);
-	uint8_t read(uint16_t addr, bool bReadOnly = false);
+	uint8_t readByte(uint16_t addr, bool bReadOnly = false);
+	uint16_t readWord(uint16_t addr, bool bReadOnly = false);
+	
+	void writeByte(uint16_t addr, uint8_t data);
+	void writeWord(uint16_t addr, uint16_t data);
 };
